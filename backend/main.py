@@ -2,15 +2,23 @@ from fastapi import FastAPI, UploadFile, File, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from pydantic import BaseModel
-import base64, os, shutil, json, re, sys, time
+import base64, os, shutil, json, re, sys, time, dspy
 sys.path.insert(0, os.path.abspath(os.path.dirname(__file__)))
 
 from dotenv import load_dotenv
 load_dotenv()
 
+import dspy
+api_key = os.getenv("GOOGLE_API_KEY")
+dspy.configure(lm=dspy.LM("gemini/gemini-2.0-flash", api_key=api_key))
+
 from app.utils.transcriber import transcribe
+from app.utils.mindmap_generator import generate_mindmap
+from app.agents.extractor_agent import MindmapExtractor
 
 app = FastAPI(title="InnerScape Backend")
+
+extractor = MindmapExtractor()
 
 class TextPayload(BaseModel):
     text: str
@@ -38,6 +46,39 @@ def transcribe_audio(file: UploadFile = File(...)):
 class TranscriptRequest(BaseModel):
     transcript: str
 
+@app.post("/extract")
+def extract_json(req: TranscriptRequest):
+    try:
+        result = extractor.forward(transcript=req.transcript)
+        def clean_json_field(field: str):
+            field = re.sub(r"^```(?:json)?\n?", "", field.strip())
+            field = re.sub(r"\n?```$", "", field)
+            return json.loads(field)
+
+        subtopics = clean_json_field(result.subtopics)
+        data = {"central_topic": result.central_topic, "subtopics": subtopics}
+
+        os.makedirs(f"{DATA_DIR}/json", exist_ok=True)
+        json_name = result.central_topic.replace(" ", "-")
+        path = f"{DATA_DIR}/json/{json_name}.json"
+        with open(path, "w", encoding="utf-8") as f:
+            json.dump(data, f, indent=2)
+
+        # Generate mindmap after JSON is created
+        generate_mindmap(path)
+
+        return {"success": True, "central_topic": result.central_topic, "path": path, "data": data}
+    except Exception as e:
+        return {"success": False, "error": str(e)}
+
+
+@app.get("/mindmap/{topic}")
+def get_mindmap(topic: str):
+    file_path = os.path.join(DATA_DIR, "mindmaps", f"{topic}.png")
+    if os.path.exists(file_path):
+        return FileResponse(file_path, media_type="image/png")
+    return {"error": "Mindmap not found"}
+
 @app.post("/journal/summary")
 async def journal_summary(payload: TextPayload):
     # Mock summary based on the input text
@@ -64,17 +105,3 @@ async def journal_resources(payload: TextPayload):
     ]
     return {"resources": resources}
 
-@app.post("/journal/mindmap")
-async def journal_mindmap(payload: TextPayload):
-    # Return a small transparent PNG base64 as placeholder mindmap image
-    transparent_png_base64 = (
-        "iVBORw0KGgoAAAANSUhEUgAAAEAAAABACAIAAAAlC+aJAAAACXBIWXMAAAsTAAALEwEAmpwYAAAB"
-        "WklEQVR4nO3YMQ6CMBBF0U8EuQoWxC6KKpDKZAn6xRqvYg6Ejr3kTr9MwHvCXkkMd4fe9PzP8XY8"
-        "TKiIICICAgICAvzI7BrAm3lgAmPz/7nFh+hwACDwAAJhIIwjpPL8AiBc+wwTx33aQ3Ahm8PQyT4H"
-        "1q86Sfh5xq6j+AAAgMAAAIDu5wXwV6Ho3E97cLgNgABAAACAwAA8DC+ADYCjIBARq6v/AnI15dcA"
-        "AAAE5SURBVHja7cExAQAAAMKg9U9tCF8gAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
-        "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAgFkAGa6x92HgAAAABJRU5ErkJggg=="
-    )
-    image_bytes = base64.b64decode(transparent_png_base64)
-
-    return {"mindmap_png_base64": image_bytes}
