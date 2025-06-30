@@ -14,13 +14,16 @@ dspy.configure(lm=dspy.LM("gemini/gemini-2.0-flash", api_key=api_key))
 
 from app.utils.transcriber import transcribe
 from app.utils.mindmap_generator import generate_mindmap
+from app.utils.json_cleaner import clean_json_from_string
 from app.agents.extractor_agent import MindmapExtractor
 from app.agents.summary_agent import Summarizer
+from app.agents.resource_agent import ResourceRecommender
 
 app = FastAPI(title="InnerScape Backend")
 
 extractor = MindmapExtractor()
 summarizer = Summarizer()
+recommender = ResourceRecommender()
 
 class TextPayload(BaseModel):
     text: str
@@ -52,12 +55,7 @@ class TranscriptRequest(BaseModel):
 def extract_json(req: TranscriptRequest):
     try:
         result = extractor.forward(transcript=req.transcript)
-        def clean_json_field(field: str):
-            field = re.sub(r"^```(?:json)?\n?", "", field.strip())
-            field = re.sub(r"\n?```$", "", field)
-            return json.loads(field)
-
-        subtopics = clean_json_field(result.subtopics)
+        subtopics = clean_json_from_string(result.subtopics)
         data = {"central_topic": result.central_topic, "subtopics": subtopics}
 
         os.makedirs(f"{DATA_DIR}/json", exist_ok=True)
@@ -89,7 +87,6 @@ async def journal_summary(payload: TextPayload):
     except Exception as e:
         return{"success":False, "error":str(e)}
 
-
 @app.post("/journal/prompts")
 async def journal_prompts(payload: TextPayload):
     # Mock reflective questions
@@ -102,11 +99,10 @@ async def journal_prompts(payload: TextPayload):
 
 @app.post("/journal/resources")
 async def journal_resources(payload: TextPayload):
-    # Mock wellness resources - URLs can be replaced with actual helpful links
-    resources = [
-        {"title": "Mindfulness Meditation Guide", "url": "https://www.mindful.org/how-to-meditate/"},
-        {"title": "Stress Management Techniques", "url": "https://www.helpguide.org/articles/stress/stress-management.htm"},
-        {"title": "Emotional Self-Care Tips", "url": "https://psychcentral.com/lib/what-is-emotional-self-care/"}
-    ]
-    return {"resources": resources}
-
+    result = recommender.forward(payload)
+    try:
+        resources = clean_json_from_string(result.strategies)
+        print(resources)
+        return {"resources": resources}
+    except ValueError as e:
+        return {"error": f"Failed to parse coping strategies: {e}"}
