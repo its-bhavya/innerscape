@@ -123,44 +123,57 @@ if st.session_state.transcript:
     with st.expander("Show full journal text", expanded=True):
         st.write(st.session_state.transcript)
 
+col1, col2, col3, col4 = st.columns(4)
+
 # Button to analyze journal
 if st.session_state.transcript:
-    if st.button("Reflect and Visualize My Journal"):
-        with st.spinner("Reflecting on your words..."):
-            res = requests.post(f"{API_BASE}/extract", json={"transcript": st.session_state.transcript})
-        
-            if res.status_code == 200:
+    with col1:
+        if st.button("Visualize My Journal"):
+            with st.spinner("Reflecting on your words..."):
+                res = requests.post(f"{API_BASE}/extract", json={"transcript": st.session_state.transcript})
+            
+                if res.status_code == 200:
+                    
+                    central_topic = res.json()["central_topic"]
+                    st.session_state.central_topic = central_topic
+                else:
+                    st.error("Mindmap generation failed.")
+                    st.json(res.json())
+    with col2:
+        if st.button("Summarize my thoughts"):
+            with st.spinner("Analysing your entry..."):
+                # Call summary agent
+                sum_res = requests.post(f"{API_BASE}/journal/summary", json={"text": st.session_state.transcript})
+                if sum_res.status_code == 200:
+                    st.session_state.summary = sum_res.json().get("summary", "")
+                    
+                else:
+                    st.error("Failed to generate summary.")
+    with col3:
+        if st.button("Generate follow-up prompts"):
+            with st.spinner("Generating follow up questions for mental clarity..."):
                 
-                central_topic = res.json()["central_topic"]
-
-                image_url = f"{API_BASE}/mindmap/{central_topic.replace(' ', '-')}"
-                st.image(image_url, caption=f"Mindmap: {central_topic}", use_container_width=True)
-            else:
-                st.error("Mindmap generation failed.")
-                st.json(res.json())
-
-            # Call summary agent
-            sum_res = requests.post(f"{API_BASE}/journal/summary", json={"text": st.session_state.transcript})
-            if sum_res.status_code == 200:
-                st.session_state.summary = sum_res.json().get("summary", "")
-            else:
-                st.error("Failed to generate summary.")
-
-            # Call prompts agent
-            prom_res = requests.post(f"{API_BASE}/journal/prompts", json={"text": st.session_state.transcript})
-            if prom_res.status_code == 200:
-                st.session_state.prompts = prom_res.json().get("prompts", [])
-            else:
-                st.error("Failed to generate reflection prompts.")
-
-            # Call resources agent
-            res_res = requests.post(f"{API_BASE}/journal/resources", json={"text": st.session_state.transcript})
-            if res_res.status_code == 200:
-                st.session_state.resources = res_res.json().get("resources", [])
-            else:
-                st.error("Failed to fetch wellness resources.")
+                # Call prompts agent
+                prom_res = requests.post(f"{API_BASE}/journal/prompts", json={"text": st.session_state.transcript})
+                if prom_res.status_code == 200:
+                    st.session_state.prompts = prom_res.json().get("prompts", [])
+                else:
+                    st.error("Failed to generate reflection prompts.")
+    with col4:
+        if st.button("Show me ways to feel better"):
+            with st.spinner("Finding resources that may ease your mind..."):
+                # Call resources agent
+                res_res = requests.post(f"{API_BASE}/journal/resources", json={"text": st.session_state.transcript})
+                if res_res.status_code == 200:
+                    st.session_state.resources = res_res.json().get("resources", [])
+                else:
+                    st.error("Failed to fetch wellness resources.")
 
 # Display summary, prompts, and resources
+if st.session_state.central_topic:
+    image_url = f"{API_BASE}/mindmap/{st.session_state.central_topic.replace(' ', '-')}"
+    st.image(image_url, caption=f"Mindmap: {st.session_state.central_topic}", use_container_width=True)
+
 if st.session_state.summary:
     st.markdown("### Summary of your reflections")
     st.write(st.session_state.summary)
