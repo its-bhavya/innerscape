@@ -18,12 +18,14 @@ from app.utils.json_cleaner import clean_json_from_string
 from app.agents.extractor_agent import MindmapExtractor
 from app.agents.summary_agent import Summarizer
 from app.agents.resource_agent import ResourceRecommender
+from app.agents.companion_agent import CompanionChat
 
 app = FastAPI(title="InnerScape Backend")
 
 extractor = MindmapExtractor()
 summarizer = Summarizer()
 recommender = ResourceRecommender()
+companion = CompanionChat()
 
 class TextPayload(BaseModel):
     text: str
@@ -87,16 +89,6 @@ async def journal_summary(payload: TextPayload):
     except Exception as e:
         return{"success":False, "error":str(e)}
 
-@app.post("/journal/prompts")
-async def journal_prompts(payload: TextPayload):
-    # Mock reflective questions
-    prompts = [
-        "What emotions stood out to you in this entry?",
-        "Can you identify any patterns in your thoughts or feelings?",
-        "What small step can you take to nurture yourself today?"
-    ]
-    return {"prompts": prompts}
-
 @app.post("/journal/resources")
 async def journal_resources(payload: TextPayload):
     result = recommender.forward(payload)
@@ -106,3 +98,15 @@ async def journal_resources(payload: TextPayload):
         return {"resources": resources}
     except ValueError as e:
         return {"error": f"Failed to parse coping strategies: {e}"}
+
+@app.post("/chat")
+async def chat_reply(payload: dict):
+    context = payload.get("context", "")
+    user_message = payload.get("message", "")
+    if not user_message:
+        return {"error": "Message missing"}
+    try:
+        result = companion.forward(context=context, user_message=user_message)
+        return {"response": result.companion_response}
+    except Exception as e:
+        return {"error": str(e)}
