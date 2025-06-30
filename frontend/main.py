@@ -126,7 +126,19 @@ if st.session_state.transcript:
 # Button to analyze journal
 if st.session_state.transcript:
     if st.button("Reflect and Visualize My Journal"):
-        with st.spinner("Gently reflecting on your words..."):
+        with st.spinner("Reflecting on your words..."):
+            res = requests.post(f"{API_BASE}/extract", json={"transcript": st.session_state.transcript})
+        
+            if res.status_code == 200:
+                
+                central_topic = res.json()["central_topic"]
+
+                image_url = f"{API_BASE}/mindmap/{central_topic.replace(' ', '-')}"
+                st.image(image_url, caption=f"Mindmap: {central_topic}", use_container_width=True)
+            else:
+                st.error("Mindmap generation failed.")
+                st.json(res.json())
+
             # Call summary agent
             sum_res = requests.post(f"{API_BASE}/journal/summary", json={"text": st.session_state.transcript})
             if sum_res.status_code == 200:
@@ -148,28 +160,10 @@ if st.session_state.transcript:
             else:
                 st.error("Failed to fetch wellness resources.")
 
-            # Call mindmap extractor agent
-            mm_res = requests.post(f"{API_BASE}/journal/mindmap", json={"text": st.session_state.transcript})
-            if mm_res.status_code == 200:
-                # Expect base64 PNG image string
-                img = mm_res.json().get("mindmap_png_base64", None)
-                if img:
-                    # Show image in Streamlit
-                    st.image(img)
-                    st.session_state.mindmap_img = img
-                else:
-                    st.warning("Mindmap not available for this entry.")
-            else:
-                st.error("Mindmap generation failed.")
-
-# Display summary, mindmap, prompts, and resources
+# Display summary, prompts, and resources
 if st.session_state.summary:
     st.markdown("### Summary of your reflections")
     st.write(st.session_state.summary)
-
-if st.session_state.mindmap_img:
-    st.markdown("### Your Wellness Mindmap")
-    st.image(st.session_state.mindmap_img)
 
 if st.session_state.prompts:
     st.markdown("### Thoughtful questions for you")
