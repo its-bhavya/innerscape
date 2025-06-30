@@ -109,7 +109,6 @@ with tab3:
 
             if res.status_code == 200:
                 st.session_state.transcript = res.json()["transcript"]
-                st.success("Transcription complete.")
                 st.session_state.summary = None
                 st.session_state.prompts = []
                 st.session_state.resources = []
