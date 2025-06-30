@@ -5,6 +5,30 @@ import io
 import os
 
 st.set_page_config(layout="wide")
+st.markdown("""
+<style>
+@keyframes slideIn {
+  0% { opacity: 0; transform: translateY(20px); }
+  100% { opacity: 1; transform: translateY(0); }
+}
+
+.strategy-card {
+  background-color: #f9f9f9;
+  border-radius: 12px;
+  padding: 1rem;
+  margin-bottom: 1rem;
+  box-shadow: 0px 2px 8px rgba(0, 0, 0, 0.05);
+  transition: transform 0.3s ease, box-shadow 0.3s ease;
+  animation: slideIn 0.4s ease forwards;
+}
+
+.strategy-card:hover {
+  transform: translateY(-4px) scale(1.02);
+  box-shadow: 0px 6px 16px rgba(0, 0, 0, 0.1);
+}
+</style>
+""", unsafe_allow_html=True)
+
 st.markdown(
     """
     <style>
@@ -187,8 +211,23 @@ if st.session_state.prompts:
         st.write(f"{i}. {prompt}")
 
 if st.session_state.resources:
-    st.markdown("### Wellness resources you might find helpful")
-    for res in st.session_state.resources:
-        title = res.get("title", "Resource")
-        url = res.get("url", "#")
-        st.markdown(f"- [{title}]({url})")
+    st.markdown("### Strategies you might find helpful")
+
+    for i in range(0, len(st.session_state.resources), 2):
+        cols = st.columns(2)
+        for j in range(2):
+            if i + j < len(st.session_state.resources):
+                strategy = st.session_state.resources[i + j]
+                with cols[j]:
+                    st.markdown(
+                        f"""
+                        <div class="strategy-card">
+                            <h4 style="margin-bottom: 0.5rem;">{strategy.get("title", f"Strategy {i+j+1}")}</h4>
+                            <p style="color: #666; font-size: 0.9rem;">{strategy.get("summary", "")}</p>
+                            <ul style="padding-left: 1.2rem; margin-top: 0.5rem;">
+                                {''.join(f"<li>{step}</li>" for step in strategy.get("steps", []))}
+                            </ul>
+                        </div>
+                        """,
+                        unsafe_allow_html=True
+                    )
