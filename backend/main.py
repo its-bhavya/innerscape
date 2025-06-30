@@ -15,10 +15,12 @@ dspy.configure(lm=dspy.LM("gemini/gemini-2.0-flash", api_key=api_key))
 from app.utils.transcriber import transcribe
 from app.utils.mindmap_generator import generate_mindmap
 from app.agents.extractor_agent import MindmapExtractor
+from app.agents.summary_agent import Summarizer
 
 app = FastAPI(title="InnerScape Backend")
 
 extractor = MindmapExtractor()
+summarizer = Summarizer()
 
 class TextPayload(BaseModel):
     text: str
@@ -81,9 +83,12 @@ def get_mindmap(topic: str):
 
 @app.post("/journal/summary")
 async def journal_summary(payload: TextPayload):
-    # Mock summary based on the input text
-    summary = "This is a warm, supportive summary highlighting the key feelings and themes in your journal."
-    return {"summary": summary}
+    result = summarizer.forward(transcript=payload)
+    try:
+        return{"success":True,"summary":result.summary}
+    except Exception as e:
+        return{"success":False, "error":str(e)}
+
 
 @app.post("/journal/prompts")
 async def journal_prompts(payload: TextPayload):
