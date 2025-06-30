@@ -51,6 +51,8 @@ if "resources" not in st.session_state:
     st.session_state.resources = []
 if "mindmap_img" not in st.session_state:
     st.session_state.mindmap_img = None
+if "central_topic" not in st.session_state:
+    st.session_state.central_topic = None
 
 st.markdown("### :material/mic: Share your journal entry")
 
@@ -110,6 +112,7 @@ with tab3:
             if res.status_code == 200:
                 st.session_state.transcript = res.json()["transcript"]
                 st.session_state.summary = None
+                st.session_state.central_topic = None
                 st.session_state.prompts = []
                 st.session_state.resources = []
                 st.session_state.mindmap_img = None
