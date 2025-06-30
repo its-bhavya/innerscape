@@ -1,28 +1,42 @@
-# backend/main.py
-
 from fastapi import FastAPI, UploadFile, File, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import FileResponse
 from pydantic import BaseModel
-import base64
+import base64, os, shutil, json, re, sys, time
+sys.path.insert(0, os.path.abspath(os.path.dirname(__file__)))
+
+from dotenv import load_dotenv
+load_dotenv()
+
+from app.utils.transcriber import transcribe
 
 app = FastAPI(title="InnerScape Backend")
-
-# Allow CORS for local development and your frontend origin
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],  # restrict in prod to your frontend URL
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
 
 class TextPayload(BaseModel):
     text: str
 
+DATA_DIR = "backend/data"
+
 @app.post("/transcribe")
-async def transcribe_audio(file: UploadFile = File(...)):
-    # Mock transcription, ignore actual audio content
-    return {"transcript": "This is a mocked transcription of your audio journal entry."}
+def transcribe_audio(file: UploadFile = File(...)):
+    start = time.time()
+    os.makedirs(os.path.join(DATA_DIR, "audio"), exist_ok=True)
+    audio_path = os.path.join(DATA_DIR, "audio", file.filename)
+
+    with open(audio_path, "wb") as f:
+        shutil.copyfileobj(file.file, f)
+    print("File saved in:", time.time() - start)
+
+    start_transcribe = time.time()
+    text = transcribe(audio_path)
+    print("Transcription done in:", time.time() - start_transcribe)
+
+    print("Total time taken:", time.time() - start)
+
+    return {"transcript": text}
+
+class TranscriptRequest(BaseModel):
+    transcript: str
 
 @app.post("/journal/summary")
 async def journal_summary(payload: TextPayload):
